@@ -1,0 +1,1078 @@
+'use client'
+
+import React from "react"
+
+import { useState, useRef } from 'react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useToast } from '@/hooks/use-toast'
+import {
+  Search,
+  RotateCcw,
+  Plus,
+  Upload,
+  Pencil,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  Database,
+  Play,
+  FileSpreadsheet,
+  Loader2,
+} from 'lucide-react'
+
+// 向量数据类型
+interface VectorData {
+  id: number
+  uniqueId: string // 唯一ID，替代dialogueId
+  rawText: string // 原始文本
+  primaryLabel: string
+  subLabel: string
+  cleanFocus: string
+  cleanContext: string
+  status: 1 | 2 | 0 // 状态: 1-已清洗, 2-已入ES, 0-作废
+  createdAt: string
+}
+
+// 搜索参数类型
+interface SearchParams {
+  uniqueId: string
+  primaryLabel: string
+  subLabel: string
+  status: string
+}
+
+// 标签颜色映射
+const labelColors: Record<string, string> = {
+  政策合规: 'bg-blue-500',
+  售后支持: 'bg-orange-500',
+  'VIP服务': 'bg-orange-500',
+  通用FAQ: 'bg-blue-500',
+  退款说明: 'bg-purple-500',
+  产品破损: 'bg-orange-500',
+  客服通道: 'bg-orange-500',
+  账号注册: 'bg-blue-500',
+}
+
+export function VectorManagement() {
+  const { toast } = useToast()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Tab状态
+  const [activeTab, setActiveTab] = useState('knowledge')
+
+  // 搜索参数
+  const [searchParams, setSearchParams] = useState<SearchParams>({
+    uniqueId: '',
+    primaryLabel: '',
+    subLabel: '',
+    status: '',
+  })
+
+  // 原始向量数据（所有数据）
+  const [allVectorData, setAllVectorData] = useState<VectorData[]>([
+    {
+      id: 10086,
+      uniqueId: 'UID_8739201',
+      rawText: '客服：您好，关于退款政策我来为您说明。客户：我想知道如何退货？',
+      primaryLabel: '政策合规',
+      subLabel: '退款说明',
+      cleanFocus: '关于退款政策的详...',
+      cleanContext: 'Q: 如何退货？\nA: 请问您的订单...',
+      status: 2,
+      createdAt: '2024-01-28 10:30:45',
+    },
+    {
+      id: 10087,
+      uniqueId: 'UID_8739245',
+      rawText: '客户：快递盒子压扁了，里面的东西坏了怎么办？客服：请拍照并联系我们处理',
+      primaryLabel: '售后支持',
+      subLabel: '产品破损',
+      cleanFocus: '产品损坏时的理赔...',
+      cleanContext: 'Q: 快递盒子压扁...\nA: 请拍照并联系...',
+      status: 1,
+      createdAt: '2024-01-27 15:20:30',
+    },
+    {
+      id: 10088,
+      uniqueId: 'UID_8739312',
+      rawText: '客户：我是金卡会员，有专属客服通道吗？客服：您好，正在为您转接专属客服',
+      primaryLabel: 'VIP服务',
+      subLabel: '客服通道',
+      cleanFocus: 'VIP客户的专属客...',
+      cleanContext: 'Q: 我是金卡会员...\nA: 您好，正在为...',
+      status: 2,
+      createdAt: '2024-01-26 09:15:20',
+    },
+    {
+      id: 10089,
+      uniqueId: 'UID_8739401',
+      rawText: '客户：收不到验证码怎么办？客服：请检查是否被拦截或查看垃圾短信',
+      primaryLabel: '通用FAQ',
+      subLabel: '账号注册',
+      cleanFocus: '新用户注册流程：...',
+      cleanContext: 'Q: 收不到验证码...\nA: 请检查查拦截...',
+      status: 0,
+      createdAt: '2024-01-25 14:45:10',
+    },
+  ])
+  
+  // 显示的向量数据（过滤后的数据）
+  const [vectorData, setVectorData] = useState<VectorData[]>(allVectorData)
+
+  // 分页
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize] = useState(10)
+  const totalItems = 97
+  const totalPages = Math.ceil(totalItems / pageSize)
+
+  // 对话框状态
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
+  const [currentData, setCurrentData] = useState<VectorData | null>(null)
+
+  // 表单数据
+  const [formData, setFormData] = useState({
+    uniqueId: '',
+    rawText: '',
+    primaryLabel: '',
+    subLabel: '',
+    cleanFocus: '',
+    cleanContext: '',
+    status: 1,
+  })
+
+  // 实时调测状态
+  const [selectedModel, setSelectedModel] = useState('')
+  const [testInput, setTestInput] = useState('')
+  const [testOutput, setTestOutput] = useState('')
+  const [isTesting, setIsTesting] = useState(false)
+  
+  // 模型列表（实际应该从模型管理API获取）
+  const modelOptions = [
+    { value: 'gpt-4', label: 'GPT-4' },
+    { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
+    { value: 'claude-3', label: 'Claude 3' },
+    { value: 'gemini-pro', label: 'Gemini Pro' },
+  ]
+  
+  // 加载状态
+  const [loading, setLoading] = useState(false)
+
+  // 搜索功能
+  const handleSearch = () => {
+    console.log('[v0] 搜索参数:', searchParams)
+    
+    let filtered = [...allVectorData]
+    
+    // 按唯一ID过滤
+    if (searchParams.uniqueId) {
+      filtered = filtered.filter(data => 
+        data.uniqueId.toLowerCase().includes(searchParams.uniqueId.toLowerCase())
+      )
+    }
+    
+    // 按基础标签过滤
+    if (searchParams.primaryLabel) {
+      filtered = filtered.filter(data => 
+        data.primaryLabel.toLowerCase().includes(searchParams.primaryLabel.toLowerCase())
+      )
+    }
+    
+    // 按子标签过滤
+    if (searchParams.subLabel) {
+      filtered = filtered.filter(data => 
+        data.subLabel.toLowerCase().includes(searchParams.subLabel.toLowerCase())
+      )
+    }
+    
+    // 按状态过滤
+    if (searchParams.status && searchParams.status !== 'all') {
+      const statusValue = parseInt(searchParams.status)
+      filtered = filtered.filter(data => data.status === statusValue)
+    }
+    
+    setVectorData(filtered)
+    console.log('[v0] 过滤后数据条数:', filtered.length)
+    
+    toast({
+      title: '查询成功',
+      description: `共查询到 ${filtered.length} 条数据`,
+    })
+  }
+
+  // 重置功能
+  const handleReset = () => {
+    setSearchParams({
+      uniqueId: '',
+      primaryLabel: '',
+      subLabel: '',
+      status: '',
+    })
+    setVectorData(allVectorData)
+    toast({
+      title: '重置成功',
+      description: '已恢复显示全部数据',
+    })
+  }
+
+  // 新增数据
+  const handleAdd = () => {
+    setFormData({
+      uniqueId: '',
+      rawText: '',
+      primaryLabel: '',
+      subLabel: '',
+      cleanFocus: '',
+      cleanContext: '',
+      status: 1,
+    })
+    setIsAddDialogOpen(true)
+  }
+
+  const handleAddConfirm = () => {
+    if (!formData.uniqueId || !formData.rawText || !formData.primaryLabel || !formData.subLabel) {
+      toast({
+        variant: 'destructive',
+        title: '错误',
+        description: '请填写必填项',
+      })
+      return
+    }
+
+    const newData: VectorData = {
+      id: Date.now(),
+      uniqueId: formData.uniqueId,
+      rawText: formData.rawText,
+      primaryLabel: formData.primaryLabel,
+      subLabel: formData.subLabel,
+      cleanFocus: formData.cleanFocus,
+      cleanContext: formData.cleanContext,
+      status: formData.status,
+      createdAt: new Date().toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }).replace(/\//g, '-'),
+    }
+
+    const updatedData = [...allVectorData, newData]
+    setAllVectorData(updatedData)
+    setVectorData(updatedData)
+    setIsAddDialogOpen(false)
+    toast({
+      title: '新增成功',
+      description: '向量数据已成功添加',
+    })
+  }
+
+  // 修改数据
+  const handleEdit = (data: VectorData) => {
+    setCurrentData(data)
+    setFormData({
+      uniqueId: data.uniqueId,
+      rawText: data.rawText,
+      primaryLabel: data.primaryLabel,
+      subLabel: data.subLabel,
+      cleanFocus: data.cleanFocus,
+      cleanContext: data.cleanContext,
+      status: data.status,
+    })
+    setIsEditDialogOpen(true)
+  }
+
+  const handleEditConfirm = () => {
+    if (!currentData) return
+
+    if (!formData.uniqueId || !formData.rawText || !formData.primaryLabel || !formData.subLabel) {
+      toast({
+        variant: 'destructive',
+        title: '错误',
+        description: '请填写必填项',
+      })
+      return
+    }
+
+    const updatedAllData = allVectorData.map((d) =>
+      d.id === currentData.id
+        ? {
+            ...d,
+            uniqueId: formData.uniqueId,
+            rawText: formData.rawText,
+            primaryLabel: formData.primaryLabel,
+            subLabel: formData.subLabel,
+          }
+        : d
+    )
+    
+    const updatedDisplayData = vectorData.map((d) =>
+      d.id === currentData.id
+        ? {
+            ...d,
+            uniqueId: formData.uniqueId,
+            rawText: formData.rawText,
+            primaryLabel: formData.primaryLabel,
+            subLabel: formData.subLabel,
+          }
+        : d
+    )
+
+    setAllVectorData(updatedAllData)
+    setVectorData(updatedDisplayData)
+    setIsEditDialogOpen(false)
+    toast({
+      title: '修改成功',
+      description: '向量数据已成功更新',
+    })
+  }
+
+  // 删除数据
+  const handleDelete = (data: VectorData) => {
+    setCurrentData(data)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleDeleteConfirm = () => {
+    if (!currentData) return
+
+    setAllVectorData(allVectorData.filter((d) => d.id !== currentData.id))
+    setVectorData(vectorData.filter((d) => d.id !== currentData.id))
+    setIsDeleteDialogOpen(false)
+    toast({
+      title: '删除成功',
+      description: '向量数据已删除',
+    })
+  }
+  
+  // 导入Excel
+  const handleImport = () => {
+    setIsImportDialogOpen(true)
+  }
+  
+  const handleFileSelect = () => {
+    fileInputRef.current?.click()
+  }
+  
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // 模拟导入
+      setLoading(true)
+      setTimeout(() => {
+        const importedData: VectorData[] = [
+          {
+            id: Date.now(),
+            uniqueId: `UID_${Date.now()}`,
+            rawText: '客户：我想了解退款政策。客服：好的，我来为您详细说明。',
+            primaryLabel: '政策合规',
+            subLabel: '退款说明',
+            cleanFocus: '从Excel导入的数据1',
+            cleanContext: 'Excel导入的上下文1',
+            status: 1,
+            createdAt: new Date().toLocaleString('zh-CN', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            }).replace(/\//g, '-'),
+          },
+          {
+            id: Date.now() + 1,
+            uniqueId: `UID_${Date.now() + 1}`,
+            rawText: '客户：产品有破损。客服：请您拍照上传，我们会尽快处理。',
+            primaryLabel: '售后支持',
+            subLabel: '产品破损',
+            cleanFocus: '从Excel导入的数据2',
+            cleanContext: 'Excel导入的上下文2',
+            status: 2,
+            createdAt: new Date().toLocaleString('zh-CN', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            }).replace(/\//g, '-'),
+          },
+        ]
+        const updatedData = [...allVectorData, ...importedData]
+        setAllVectorData(updatedData)
+        setVectorData(updatedData)
+        setLoading(false)
+        setIsImportDialogOpen(false)
+        toast({
+          title: '导入成功',
+          description: `成功导入 ${importedData.length} 条向量数据`,
+        })
+      }, 1500)
+    }
+    // 重置input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  // 实时调测
+  const handleTest = async () => {
+    if (!selectedModel) {
+      toast({
+        variant: 'destructive',
+        title: '错误',
+        description: '请选择模型',
+      })
+      return
+    }
+    
+    if (!testInput.trim()) {
+      toast({
+        variant: 'destructive',
+        title: '错误',
+        description: '请输入测试文本',
+      })
+      return
+    }
+
+    setIsTesting(true)
+    const modelName = modelOptions.find(m => m.value === selectedModel)?.label || selectedModel
+    setTestOutput(`正在使用模型 ${modelName} 进行测试...`)
+    
+    console.log('[v0] 实时调测 - 模型:', selectedModel, '输入:', testInput)
+
+    // 模拟API调用
+    setTimeout(() => {
+      setTestOutput(
+        `测试结果：\n\n使用模型：${modelName}\n基础标签：通用FAQ\n子标签：账号注册\n核心话术：用户咨询注册相关问题\n上下文：Q: ${testInput}\nA: 这是模拟的回答内容...\n\n相似度：0.95\n匹配向量ID：10089`
+      )
+      setIsTesting(false)
+      toast({
+        title: '测试完成',
+        description: `模型 ${modelName} 调用成功`,
+      })
+    }, 2000)
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">向量数据库管理</h1>
+        </div>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="inline-flex w-full md:w-1/3">
+          <TabsTrigger 
+            value="knowledge" 
+            className="flex items-center gap-2 data-[state=active]:text-primary data-[state=active]:font-semibold flex-1"
+          >
+            <Database className="h-4 w-4" />
+            向量知识库
+          </TabsTrigger>
+          <TabsTrigger 
+            value="test" 
+            className="flex items-center gap-2 data-[state=active]:text-primary data-[state=active]:font-semibold flex-1"
+          >
+            <Play className="h-4 w-4" />
+            实时调测
+          </TabsTrigger>
+        </TabsList>
+
+        {/* 向量知识库 Tab */}
+        <TabsContent value="knowledge" className="space-y-4">
+          {/* 搜索区域 */}
+          <Card className="p-6">
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="unique-id">唯一ID</Label>
+                  <Input
+                    id="unique-id"
+                    placeholder="请输入唯一ID"
+                    value={searchParams.uniqueId}
+                    onChange={(e) =>
+                      setSearchParams({ ...searchParams, uniqueId: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="primary-label">基础标签</Label>
+                  <Input
+                    id="primary-label"
+                    placeholder="请输入基础标签"
+                    value={searchParams.primaryLabel}
+                    onChange={(e) =>
+                      setSearchParams({ ...searchParams, primaryLabel: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="sub-label">子标签</Label>
+                  <Input
+                    id="sub-label"
+                    placeholder="请输入子标签"
+                    value={searchParams.subLabel}
+                    onChange={(e) =>
+                      setSearchParams({ ...searchParams, subLabel: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="status">状态</Label>
+                  <Select
+                    value={searchParams.status}
+                    onValueChange={(value) =>
+                      setSearchParams({ ...searchParams, status: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="全部状态" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部状态</SelectItem>
+                      <SelectItem value="1">已清洗</SelectItem>
+                      <SelectItem value="2">已入ES</SelectItem>
+                      <SelectItem value="0">作废</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="hidden md:block" />
+                <div className="hidden md:block" />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button onClick={handleSearch} disabled={loading}>
+                  <Search className="mr-2 h-4 w-4" />
+                  搜索
+                </Button>
+                <Button variant="outline" onClick={handleReset} disabled={loading}>
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  重置
+                </Button>
+              </div>
+            </div>
+          </Card>
+
+          {/* 操作按钮 */}
+          <div className="flex gap-2">
+            <Button variant="outline" className="text-white hover:bg-green-600 hover:text-white bg-primary" onClick={handleImport}>
+              <Upload className="mr-2 h-4 w-4" />
+              Excel 导入
+            </Button>
+            <Button onClick={handleAdd}>
+              <Plus className="mr-2 h-4 w-4" />
+              新增样本
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+          </div>
+
+          {/* 数据表格 */}
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>唯一ID</TableHead>
+                    <TableHead>原始文本</TableHead>
+                    <TableHead>基础标签</TableHead>
+                    <TableHead>子标签</TableHead>
+                    <TableHead>核心话术</TableHead>
+                    <TableHead>上下文</TableHead>
+                    <TableHead>状态</TableHead>
+                    <TableHead className="w-[120px]">操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {vectorData.map((data) => (
+                    <TableRow key={data.id}>
+                      <TableCell className="font-medium">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="max-w-[200px] truncate cursor-help">
+                                {data.uniqueId}
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="max-w-md break-all">{data.uniqueId}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableCell>
+                      <TableCell>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="max-w-xs truncate cursor-help">
+                                {data.rawText}
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="max-w-md whitespace-pre-wrap">{data.rawText}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          className={`${labelColors[data.primaryLabel] || 'bg-gray-500'} text-white`}
+                        >
+                          {data.primaryLabel}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          className={`${labelColors[data.subLabel] || 'bg-gray-500'} text-white`}
+                        >
+                          {data.subLabel}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="max-w-xs truncate cursor-help">
+                                {data.cleanFocus}
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="max-w-md whitespace-pre-wrap">{data.cleanFocus}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableCell>
+                      <TableCell>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="max-w-xs truncate cursor-help">
+                                {data.cleanContext}
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="max-w-md whitespace-pre-wrap">{data.cleanContext}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            data.status === 2
+                              ? 'default'
+                              : data.status === 1
+                                ? 'secondary'
+                                : 'outline'
+                          }
+                        >
+                          {data.status === 2 ? '已入ES' : data.status === 1 ? '已清洗' : '作废'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button className="text-primary" variant="ghost" size="sm" onClick={() => handleEdit(data)}>
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleDelete(data)}>
+                            <Trash2 className="h-3 w-3 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          {/* 分页 */}
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              显示第 {(currentPage - 1) * pageSize + 1} 到{' '}
+              {Math.min(currentPage * pageSize, totalItems)} 条，共 {totalItems} 条结果
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                const page = i + 1
+                return (
+                  <Button
+                    key={page}
+                    variant={currentPage === page ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setCurrentPage(page)}
+                  >
+                    {page}
+                  </Button>
+                )
+              })}
+              {totalPages > 5 && <span className="text-sm text-muted-foreground">...</span>}
+              {totalPages > 5 && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(totalPages - 1)}
+                  >
+                    {totalPages - 1}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(totalPages)}>
+                    {totalPages}
+                  </Button>
+                </>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage === totalPages}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* 实时调测 Tab */}
+        <TabsContent value="test" className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* 输入区域 */}
+            <Card>
+              <CardHeader>
+                <CardTitle>原始话术</CardTitle>
+                
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="model-select">
+                    模型名称 <span className="text-destructive">*</span>
+                  </Label>
+                  <Select value={selectedModel} onValueChange={setSelectedModel}>
+                    <SelectTrigger id="model-select">
+                      <SelectValue placeholder="请选择模型" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {modelOptions.map((model) => (
+                        <SelectItem key={model.value} value={model.value}>
+                          {model.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="test-input">输入内容</Label>
+                  <Textarea
+                    id="test-input"
+                    placeholder="请输入要测试的文本内容..."
+                    value={testInput}
+                    onChange={(e) => setTestInput(e.target.value)}
+                    rows={10}
+                    className="w-full resize-none"
+                  />
+                </div>
+                <Button 
+                  onClick={handleTest} 
+                  disabled={isTesting || !selectedModel || !testInput} 
+                  className="w-full"
+                >
+                  <Play className="mr-2 h-4 w-4" />
+                  {isTesting ? '测试中...' : '开始测试'}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* 结果展示区域 */}
+            <Card>
+              <CardHeader>
+                <CardTitle>结果展示</CardTitle>
+                <CardDescription>向量检索和大模型检测后结果</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  
+                  <Textarea
+                    id="test-output"
+                    value={testOutput}
+                    readOnly
+                    placeholder="测试结果将显示在这里..."
+                    rows={10}
+                    className="w-full resize-none bg-muted"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {/* 新增对话框 */}
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>新增样本</DialogTitle>
+            <DialogDescription>添加新的向量数据到知识库</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+            <div className="space-y-2">
+              <Label htmlFor="add-unique-id">
+                唯一ID <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="add-unique-id"
+                value={formData.uniqueId}
+                onChange={(e) => setFormData({ ...formData, uniqueId: e.target.value })}
+                placeholder="请输入唯一ID，如：UID_8739201"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="add-raw-text">
+                原始话术 <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                id="add-raw-text"
+                value={formData.rawText}
+                onChange={(e) => setFormData({ ...formData, rawText: e.target.value })}
+                placeholder="请输入原始话术"
+                rows={4}
+                className="w-full resize-none"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="add-primary-label">
+                  基础标签 <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="add-primary-label"
+                  value={formData.primaryLabel}
+                  onChange={(e) => setFormData({ ...formData, primaryLabel: e.target.value })}
+                  placeholder="请输入基础标签"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="add-sub-label">
+                  子标签 <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="add-sub-label"
+                  value={formData.subLabel}
+                  onChange={(e) => setFormData({ ...formData, subLabel: e.target.value })}
+                  placeholder="请输入子标签"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+              取消
+            </Button>
+            <Button
+              onClick={handleAddConfirm}
+              disabled={!formData.uniqueId || !formData.rawText || !formData.primaryLabel || !formData.subLabel}
+            >
+              确定
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 修改对话框 */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>修改样本</DialogTitle>
+            <DialogDescription>编辑向量数据信息</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+            <div className="space-y-2">
+              <Label htmlFor="edit-unique-id">
+                唯一ID <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="edit-unique-id"
+                value={formData.uniqueId}
+                onChange={(e) => setFormData({ ...formData, uniqueId: e.target.value })}
+                placeholder="请输入唯一ID"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-raw-text">
+                原始话术 <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                id="edit-raw-text"
+                value={formData.rawText}
+                onChange={(e) => setFormData({ ...formData, rawText: e.target.value })}
+                placeholder="请输入原始话术"
+                rows={4}
+                className="w-full resize-none"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-primary-label">
+                  基础标签 <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="edit-primary-label"
+                  value={formData.primaryLabel}
+                  onChange={(e) => setFormData({ ...formData, primaryLabel: e.target.value })}
+                  placeholder="请输入基础标签"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-sub-label">
+                  子标签 <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="edit-sub-label"
+                  value={formData.subLabel}
+                  onChange={(e) => setFormData({ ...formData, subLabel: e.target.value })}
+                  placeholder="请输入子标签"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              取消
+            </Button>
+            <Button
+              onClick={handleEditConfirm}
+              disabled={!formData.uniqueId || !formData.rawText || !formData.primaryLabel || !formData.subLabel}
+            >
+              确定
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 导入Excel对话框 */}
+      <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>导入Excel</DialogTitle>
+            <DialogDescription>从Excel文件批量导入向量数据</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="border-2 border-dashed rounded-lg p-8 text-center">
+              <FileSpreadsheet className="mx-auto h-12 w-12 text-muted-foreground" />
+              <p className="mt-4 text-sm text-muted-foreground">
+                支持 .xlsx, .xls 格式文件
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                文件需包含：唯一ID、基础标签、子标签、核心话术、上下文 等列
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+              <Button className="mt-4" onClick={handleFileSelect} disabled={loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    导入中...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="mr-2 h-4 w-4" />
+                    选择文件
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>
+              关闭
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 删除对话框 */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除唯一ID为 {currentData?.uniqueId} 的数据吗？此操作无法撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm}>确定</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  )
+}
