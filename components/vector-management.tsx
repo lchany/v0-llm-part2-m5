@@ -63,8 +63,11 @@ import {
   Play,
   FileSpreadsheet,
   Loader2,
+  Eye,
+  ListChecks,
+  Info,
 } from 'lucide-react'
-import { ImportTaskPanel, type ImportTask } from '@/components/import-task-panel'
+import { type ImportTask } from '@/components/import-task-panel'
 
 // 向量数据类型
 interface VectorData {
@@ -104,7 +107,10 @@ export function VectorManagement() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Tab状态
-  const [activeTab, setActiveTab] = useState('import-tasks')
+  const [activeTab, setActiveTab] = useState('sample-detail')
+  
+  // 当前查看的任务详情
+  const [currentTaskDetail, setCurrentTaskDetail] = useState<ImportTask | null>(null)
 
   // 搜索参数
   const [searchParams, setSearchParams] = useState<SearchParams>({
@@ -211,8 +217,6 @@ export function VectorManagement() {
 
   // 搜索功能
   const handleSearch = () => {
-    console.log('[v0] 搜索参数:', searchParams)
-    
     let filtered = [...allVectorData]
     
     // 按唯一ID过滤
@@ -243,8 +247,6 @@ export function VectorManagement() {
     }
     
     setVectorData(filtered)
-    console.log('[v0] 过滤后数据条数:', filtered.length)
-    
     toast({
       title: '查询成功',
       description: `共查询到 ${filtered.length} 条数据`,
@@ -435,10 +437,11 @@ export function VectorManagement() {
       }
       setImportTasks((prev) => [newTask, ...prev])
       setIsImportDialogOpen(false)
+      setShowImportHint(true)
 
       toast({
         title: '任务已提交',
-        description: `文件 "${file.name}" 已提交异步处理，可在"导入任务"中查看进度`,
+        description: `文件 "${file.name}" 已提交异步处理，可在"样本导入任务"页签查看进度`,
       })
 
       // 模拟后端异步处理：先变为 processing
@@ -505,6 +508,15 @@ export function VectorManagement() {
     }
   }
 
+  // 最近是否有新导入任务（用于在样本详情上方显示提示）
+  const [showImportHint, setShowImportHint] = useState(false)
+
+  // 查看任务详情
+  const handleViewTaskDetail = (task: ImportTask) => {
+    setCurrentTaskDetail(task)
+    setActiveTab('task-detail')
+  }
+
   // 重试失败任务
   const handleRetryTask = (task: ImportTask) => {
     setImportTasks((prev) =>
@@ -541,8 +553,6 @@ export function VectorManagement() {
     const modelName = modelOptions.find(m => m.value === selectedModel)?.label || selectedModel
     setTestOutput(`正在使用模型 ${modelName} 进行测试...`)
     
-    console.log('[v0] 实时调测 - 模型:', selectedModel, '输入:', testInput)
-
     // 模拟API调用
     setTimeout(() => {
       setTestOutput(
@@ -564,8 +574,18 @@ export function VectorManagement() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="inline-flex w-full md:w-1/2">
+      <Tabs value={activeTab} onValueChange={(val) => {
+        setActiveTab(val)
+        if (val === 'import-tasks') setShowImportHint(false)
+      }}>
+        <TabsList className="inline-flex w-full md:w-2/3 lg:w-1/2">
+          <TabsTrigger
+            value="sample-detail"
+            className="flex items-center gap-2 data-[state=active]:text-primary data-[state=active]:font-semibold flex-1"
+          >
+            <Database className="h-4 w-4" />
+            向量数据库样本
+          </TabsTrigger>
           <TabsTrigger
             value="import-tasks"
             className="flex items-center gap-2 data-[state=active]:text-primary data-[state=active]:font-semibold flex-1"
@@ -573,13 +593,15 @@ export function VectorManagement() {
             <Upload className="h-4 w-4" />
             样本导入任务
           </TabsTrigger>
-          <TabsTrigger
-            value="sample-detail"
-            className="flex items-center gap-2 data-[state=active]:text-primary data-[state=active]:font-semibold flex-1"
-          >
-            <Database className="h-4 w-4" />
-            样本详情
-          </TabsTrigger>
+          {currentTaskDetail && (
+            <TabsTrigger
+              value="task-detail"
+              className="flex items-center gap-2 data-[state=active]:text-primary data-[state=active]:font-semibold flex-1"
+            >
+              <ListChecks className="h-4 w-4" />
+              任务详情
+            </TabsTrigger>
+          )}
           <TabsTrigger
             value="test"
             className="flex items-center gap-2 data-[state=active]:text-primary data-[state=active]:font-semibold flex-1"
@@ -591,25 +613,6 @@ export function VectorManagement() {
 
         {/* 样本导入任务 Tab */}
         <TabsContent value="import-tasks" className="space-y-4">
-          {/* 导入操作区 */}
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              className="text-white hover:bg-green-600 hover:text-white bg-primary"
-              onClick={handleImport}
-            >
-              <Upload className="mr-2 h-4 w-4" />
-              Excel 导入
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx,.xls"
-              className="hidden"
-              onChange={handleFileChange}
-            />
-          </div>
-
           {/* 任务列表 */}
           <Card>
             <CardContent className="p-0">
@@ -631,7 +634,7 @@ export function VectorManagement() {
                       <TableHead>提交时间</TableHead>
                       <TableHead>完成时间</TableHead>
                       <TableHead>备注</TableHead>
-                      <TableHead className="w-[80px]">操作</TableHead>
+                      <TableHead className="w-[120px]">操作</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -711,16 +714,27 @@ export function VectorManagement() {
                             </TooltipProvider>
                           </TableCell>
                           <TableCell>
-                            {task.status === 'failed' && (
+                            <div className="flex items-center gap-1">
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-7 px-2 text-xs"
-                                onClick={() => handleRetryTask(task)}
+                                className="h-7 px-2 text-xs text-primary"
+                                onClick={() => handleViewTaskDetail(task)}
                               >
-                                重试
+                                <Eye className="mr-1 h-3 w-3" />
+                                详情
                               </Button>
-                            )}
+                              {task.status === 'failed' && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2 text-xs"
+                                  onClick={() => handleRetryTask(task)}
+                                >
+                                  重试
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       )
@@ -732,8 +746,34 @@ export function VectorManagement() {
           </Card>
         </TabsContent>
 
-        {/* 样本详情 Tab */}
+        {/* 向量数据库样本 Tab */}
         <TabsContent value="sample-detail" className="space-y-4">
+          {/* 导入提示 */}
+          {showImportHint && (
+            <div className="flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+              <Info className="h-4 w-4 shrink-0" />
+              <span>
+                导入任务已提交，请到
+                <button
+                  type="button"
+                  className="mx-1 font-medium underline underline-offset-2 hover:text-blue-900"
+                  onClick={() => { setActiveTab('import-tasks'); setShowImportHint(false) }}
+                >
+                  样本导入任务
+                </button>
+                页签查看进度
+              </span>
+              <button
+                type="button"
+                className="ml-auto text-blue-400 hover:text-blue-600"
+                onClick={() => setShowImportHint(false)}
+                aria-label="关闭提示"
+              >
+                &times;
+              </button>
+            </div>
+          )}
+
           {/* 搜索区域 */}
           <Card className="p-6">
             <div className="space-y-4">
@@ -810,10 +850,25 @@ export function VectorManagement() {
 
           {/* 操作按钮 */}
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              className="text-white hover:bg-green-600 hover:text-white bg-primary"
+              onClick={handleImport}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Excel 导入
+            </Button>
             <Button onClick={handleAdd}>
               <Plus className="mr-2 h-4 w-4" />
               新增样本
             </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={handleFileChange}
+            />
           </div>
 
           {/* 数据表格 */}
@@ -988,6 +1043,122 @@ export function VectorManagement() {
               </Button>
             </div>
           </div>
+        </TabsContent>
+
+        {/* 任务详情 Tab */}
+        <TabsContent value="task-detail" className="space-y-4">
+          {currentTaskDetail ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setActiveTab('import-tasks')}
+                >
+                  <ChevronLeft className="mr-1 h-4 w-4" />
+                  返回任务列表
+                </Button>
+              </div>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">任务详情</CardTitle>
+                  <CardDescription>任务ID: {currentTaskDetail.taskId}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* 基本信息 */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">文件名</p>
+                      <p className="text-sm font-medium break-all">{currentTaskDetail.fileName}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">状态</p>
+                      <Badge
+                        variant={
+                          currentTaskDetail.status === 'success'
+                            ? 'default'
+                            : currentTaskDetail.status === 'failed'
+                              ? 'destructive'
+                              : currentTaskDetail.status === 'processing'
+                                ? 'secondary'
+                                : 'outline'
+                        }
+                        className="flex w-fit items-center gap-1"
+                      >
+                        {currentTaskDetail.status === 'processing' && (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        )}
+                        {currentTaskDetail.status === 'pending' && '等待中'}
+                        {currentTaskDetail.status === 'processing' && '处理中'}
+                        {currentTaskDetail.status === 'success' && '成功'}
+                        {currentTaskDetail.status === 'failed' && '失败'}
+                      </Badge>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">提交时间</p>
+                      <p className="text-sm font-medium">{currentTaskDetail.createdAt}</p>
+                    </div>
+                  </div>
+
+                  <hr />
+
+                  {/* 统计信息 */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <Card className="border bg-muted/30">
+                      <CardContent className="flex flex-col items-center justify-center py-6">
+                        <p className="text-2xl font-bold">{currentTaskDetail.totalRows || '-'}</p>
+                        <p className="text-sm text-muted-foreground">总行数</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="border bg-green-50">
+                      <CardContent className="flex flex-col items-center justify-center py-6">
+                        <p className="text-2xl font-bold text-green-600">{currentTaskDetail.successRows || '-'}</p>
+                        <p className="text-sm text-muted-foreground">成功</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="border bg-red-50">
+                      <CardContent className="flex flex-col items-center justify-center py-6">
+                        <p className="text-2xl font-bold text-destructive">{currentTaskDetail.totalRows ? currentTaskDetail.failedRows : '-'}</p>
+                        <p className="text-sm text-muted-foreground">失败</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <hr />
+
+                  {/* 详细信息 */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">完成时间</p>
+                      <p className="text-sm font-medium">{currentTaskDetail.finishedAt ?? '处理中...'}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">备注 / 错误信息</p>
+                      <p className="text-sm font-medium whitespace-pre-wrap">{currentTaskDetail.message || '-'}</p>
+                    </div>
+                  </div>
+
+                  {/* 操作 */}
+                  {currentTaskDetail.status === 'failed' && (
+                    <>
+                      <hr />
+                      <div>
+                        <Button onClick={() => handleRetryTask(currentTaskDetail)}>
+                          重试任务
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <div className="py-16 text-center text-muted-foreground">
+              <ListChecks className="mx-auto mb-3 h-10 w-10 opacity-25" />
+              <p className="text-sm">请从"样本导入任务"页签点击详情查看</p>
+            </div>
+          )}
         </TabsContent>
 
         {/* 实时调测 Tab */}
