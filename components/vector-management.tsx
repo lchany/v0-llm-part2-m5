@@ -259,14 +259,14 @@ export function VectorManagement() {
       )
     }
     
-    // 按基础标签过滤
+    // 按基础类别过滤
     if (searchParams.primaryLabel) {
       filtered = filtered.filter(data => 
         data.primaryLabel.toLowerCase().includes(searchParams.primaryLabel.toLowerCase())
       )
     }
     
-    // 按子标签过滤
+    // 按细分类过滤
     if (searchParams.subLabel) {
       filtered = filtered.filter(data => 
         data.subLabel.toLowerCase().includes(searchParams.subLabel.toLowerCase())
@@ -493,7 +493,7 @@ export function VectorManagement() {
         const simulatedSuccess = simulatedTotal - simulatedFailed
 
         const finishedTime = nowStr()
-        const importedData: VectorData[] = Array.from({ length: simulatedSuccess }, (_, i) => ({
+        const successData: VectorData[] = Array.from({ length: simulatedSuccess }, (_, i) => ({
           id: Date.now() + i,
           uniqueId: `UID_${Date.now() + i}`,
           rawText: `从 ${file.name} 导入的原始话术第 ${i + 1} 条`,
@@ -507,6 +507,21 @@ export function VectorManagement() {
           remark: '',
           finishedAt: finishedTime,
         }))
+        const failedData: VectorData[] = Array.from({ length: simulatedFailed }, (_, i) => ({
+          id: Date.now() + simulatedSuccess + i,
+          uniqueId: `UID_${Date.now() + simulatedSuccess + i}`,
+          rawText: `从 ${file.name} 导入的异常数据第 ${i + 1} 条`,
+          primaryLabel: '',
+          subLabel: '',
+          cleanFocus: '',
+          cleanContext: '',
+          status: 0 as const,
+          createdAt: nowStr(),
+          taskId,
+          remark: ['字段缺失：基础类别为空', '数据格式异常：原始文本超长', '重复数据已存在'][i % 3],
+          finishedAt: finishedTime,
+        }))
+        const importedData = [...successData, ...failedData]
 
         const updatedData = [...allVectorData, ...importedData]
         setAllVectorData(updatedData)
@@ -548,9 +563,9 @@ export function VectorManagement() {
   // 导入任务搜索
   const handleTaskSearch = () => {
     let filtered = [...allImportTasks]
-    if (taskSearchParams.taskId) {
+    if (taskSearchParams.taskId.trim()) {
       filtered = filtered.filter(t =>
-        t.taskId.toLowerCase().includes(taskSearchParams.taskId.toLowerCase())
+        t.taskId.toLowerCase().includes(taskSearchParams.taskId.trim().toLowerCase())
       )
     }
     if (taskSearchParams.status && taskSearchParams.status !== 'all') {
@@ -576,21 +591,22 @@ export function VectorManagement() {
 
   // 任务详情搜索
   const handleDetailSearch = () => {
-    if (!detailSearchParams.taskId) {
-      toast({ variant: 'destructive', title: '请输入任务ID' })
-      return
+    // 查找对应任务（如果填了taskId）
+    if (detailSearchParams.taskId) {
+      const task = allImportTasks.find(t =>
+        t.taskId.toLowerCase().includes(detailSearchParams.taskId.toLowerCase())
+      )
+      setCurrentTaskDetail(task || null)
+    } else {
+      setCurrentTaskDetail(null)
     }
-    // 查找对应任务
-    const task = allImportTasks.find(t =>
-      t.taskId.toLowerCase().includes(detailSearchParams.taskId.toLowerCase())
-    )
-    setCurrentTaskDetail(task || null)
-    // 查询该任务关联的样本记录
-    let filtered = allVectorData
-      .filter(d => d.taskId && d.taskId.toLowerCase().includes(detailSearchParams.taskId.toLowerCase()))
+    // 查询样本记录：有taskId则按任务过滤，否则查所有
+    let filtered = [...allVectorData]
+    if (detailSearchParams.taskId) {
+      filtered = filtered.filter(d => d.taskId && d.taskId.toLowerCase().includes(detailSearchParams.taskId.toLowerCase()))
+    }
     // 按状态过滤
     if (detailSearchParams.status && detailSearchParams.status !== 'all') {
-      const statusVal = detailSearchParams.status === 'success' ? 1 : 0
       filtered = filtered.filter(d => {
         if (detailSearchParams.status === 'success') return d.status === 1 || d.status === 2
         return d.status === 0
@@ -602,8 +618,8 @@ export function VectorManagement() {
       rawText: d.rawText,
       primaryLabel: d.primaryLabel,
       subLabel: d.subLabel,
-      status: d.status === 1 ? '已清洗' : d.status === 2 ? '已入ES' : '作废',
-      remark: d.remark || '',
+      status: d.status === 0 ? '失败' : '成功',
+      remark: d.status === 0 ? (d.remark || '数据格式异常') : (d.remark || ''),
       createdAt: d.createdAt,
       finishedAt: d.finishedAt || '-',
     }))
@@ -631,8 +647,8 @@ export function VectorManagement() {
         rawText: d.rawText,
         primaryLabel: d.primaryLabel,
         subLabel: d.subLabel,
-        status: d.status === 1 ? '已清洗' : d.status === 2 ? '已入ES' : '作废',
-        remark: d.remark || '',
+        status: d.status === 0 ? '失败' : '成功',
+        remark: d.status === 0 ? (d.remark || '数据格式异常') : (d.remark || ''),
         createdAt: d.createdAt,
         finishedAt: d.finishedAt || '-',
       }))
@@ -678,7 +694,7 @@ export function VectorManagement() {
     // 模拟API调用
     setTimeout(() => {
       setTestOutput(
-        `测试结果：\n\n使用模型：${modelName}\n基础标签：通用FAQ\n子标签：账号注册\n核心话术：用户咨询注册相关问题\n上下文：Q: ${testInput}\nA: 这是模拟的回答内容...\n\n相似度：0.95\n匹配向量ID：10089`
+        `测试结果：\n\n使用模型：${modelName}\n基础类别：通用FAQ\n细分类：账号注册\n核心话术：用户咨询注册相关问题\n上下文：Q: ${testInput}\nA: 这是模拟的回答内容...\n\n相似度：0.95\n匹配向量ID：10089`
       )
       setIsTesting(false)
       toast({
@@ -943,10 +959,10 @@ export function VectorManagement() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="primary-label">基础标签</Label>
+                  <Label htmlFor="primary-label">基础类别</Label>
                   <Input
                     id="primary-label"
-                    placeholder="请输入基础标签"
+                    placeholder="请输入基础类别"
                     value={searchParams.primaryLabel}
                     onChange={(e) =>
                       setSearchParams({ ...searchParams, primaryLabel: e.target.value })
@@ -954,10 +970,10 @@ export function VectorManagement() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="sub-label">子标签</Label>
+                  <Label htmlFor="sub-label">细分类</Label>
                   <Input
                     id="sub-label"
-                    placeholder="请输入子标签"
+                    placeholder="请输入细分类"
                     value={searchParams.subLabel}
                     onChange={(e) =>
                       setSearchParams({ ...searchParams, subLabel: e.target.value })
@@ -1032,8 +1048,8 @@ export function VectorManagement() {
                   <TableRow>
                     <TableHead>唯一ID</TableHead>
                     <TableHead>原始文本</TableHead>
-                    <TableHead>基础标签</TableHead>
-                    <TableHead>子标签</TableHead>
+                    <TableHead>基础类别</TableHead>
+                    <TableHead>细分类</TableHead>
                     <TableHead>核心话术</TableHead>
                     <TableHead>上下文</TableHead>
                     <TableHead>状态</TableHead>
@@ -1273,8 +1289,8 @@ export function VectorManagement() {
                       <TableHead>任务ID</TableHead>
                       <TableHead>唯一ID</TableHead>
                       <TableHead>原始文本</TableHead>
-                      <TableHead>基础标签</TableHead>
-                      <TableHead>子标签</TableHead>
+                      <TableHead>基础类别</TableHead>
+                      <TableHead>细分类</TableHead>
                       <TableHead>状态</TableHead>
                       <TableHead>备注</TableHead>
                       <TableHead>提交时间</TableHead>
@@ -1325,7 +1341,7 @@ export function VectorManagement() {
                         </TableCell>
                         <TableCell>
                           <Badge
-                            variant={record.status === '已入ES' ? 'default' : record.status === '已清洗' ? 'secondary' : 'destructive'}
+                            variant={record.status === '成功' ? 'default' : 'destructive'}
                             className="text-xs whitespace-nowrap"
                           >
                             {record.status}
@@ -1457,24 +1473,24 @@ export function VectorManagement() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="add-primary-label">
-                  基础标签 <span className="text-destructive">*</span>
+                  基础类别 <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   id="add-primary-label"
                   value={formData.primaryLabel}
                   onChange={(e) => setFormData({ ...formData, primaryLabel: e.target.value })}
-                  placeholder="请输入基础标签"
+                  placeholder="请输入基础类别"
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="add-sub-label">
-                  子标签 <span className="text-destructive">*</span>
+                  细分类 <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   id="add-sub-label"
                   value={formData.subLabel}
                   onChange={(e) => setFormData({ ...formData, subLabel: e.target.value })}
-                  placeholder="请输入子标签"
+                  placeholder="请输入细分类"
                 />
               </div>
             </div>
@@ -1528,24 +1544,24 @@ export function VectorManagement() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-primary-label">
-                  基础标签 <span className="text-destructive">*</span>
+                  基础类别 <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   id="edit-primary-label"
                   value={formData.primaryLabel}
                   onChange={(e) => setFormData({ ...formData, primaryLabel: e.target.value })}
-                  placeholder="请输入基础标签"
+                  placeholder="请输入基础类别"
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-sub-label">
-                  子标签 <span className="text-destructive">*</span>
+                  细分类 <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   id="edit-sub-label"
                   value={formData.subLabel}
                   onChange={(e) => setFormData({ ...formData, subLabel: e.target.value })}
-                  placeholder="请输入子标签"
+                  placeholder="请输入细分类"
                 />
               </div>
             </div>
@@ -1580,7 +1596,7 @@ export function VectorManagement() {
                 size="sm"
                 onClick={() => {
                   // 生成模板CSV并下载
-                  const header = '唯一ID,原始文本,基础标签,子标签,核心话术,上下文'
+                  const header = '唯一ID,原始文本,基础类别,细分类,核心话术,上下文'
                   const example = 'UID_001,示例原始文本,政策合规,退款说明,示例核心话术,示例上下文'
                   const csvContent = '\uFEFF' + header + '\n' + example
                   const blob = new Blob([csvContent], { type: 'application/vnd.ms-excel;charset=utf-8' })
@@ -1604,7 +1620,7 @@ export function VectorManagement() {
                 支持 .xlsx, .xls 格式文件
               </p>
               <p className="mt-2 text-xs text-muted-foreground">
-                文件需包含：唯一ID、基础标签、子标签、核心话术、上下文 等列
+                文件需包含：唯一ID、基础类别、细分类、核心话术、上下文 等列
               </p>
               <input
                 ref={fileInputRef}
