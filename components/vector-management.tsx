@@ -218,12 +218,12 @@ export function VectorManagement() {
   const [testOutput, setTestOutput] = useState('')
   const [isTesting, setIsTesting] = useState(false)
   
-  // 模型列表（实际应该从模型管理API获取）
+  // 工作流模板列表（实际应该从工作流管理API获取）
   const modelOptions = [
-    { value: 'gpt-4', label: 'GPT-4' },
-    { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
-    { value: 'claude-3', label: 'Claude 3' },
-    { value: 'gemini-pro', label: 'Gemini Pro' },
+    { value: 'workflow-quality-check', label: '质检工作流模板' },
+    { value: 'workflow-compliance', label: '合规检测工作流' },
+    { value: 'workflow-sentiment', label: '情感分析工作流' },
+    { value: 'workflow-keyword', label: '关键词提取工作流' },
   ]
   
   // 导入任务列表
@@ -1370,18 +1370,14 @@ export function VectorManagement() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* 输入区域 */}
             <Card>
-              <CardHeader>
-                <CardTitle>原始话术</CardTitle>
-                
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="model-select">
-                    模型名称 <span className="text-destructive">*</span>
+              <CardContent className="space-y-4 pt-6">
+                <div className="flex items-center gap-4">
+                  <Label htmlFor="model-select" className="shrink-0">
+                    工作流模板 <span className="text-destructive">*</span>
                   </Label>
                   <Select value={selectedModel} onValueChange={setSelectedModel}>
-                    <SelectTrigger id="model-select">
-                      <SelectValue placeholder="请选择模型" />
+                    <SelectTrigger id="model-select" className="flex-1">
+                      <SelectValue placeholder="请选择工作流模板" />
                     </SelectTrigger>
                     <SelectContent>
                       {modelOptions.map((model) => (
@@ -1393,10 +1389,10 @@ export function VectorManagement() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="test-input">输入内容</Label>
+                  <Label htmlFor="test-input">输入待质检对话文本，实时测验系统质量</Label>
                   <Textarea
                     id="test-input"
-                    placeholder="请输入要测试的文本内容..."
+                    placeholder="请输入待质检的对话文本..."
                     value={testInput}
                     onChange={(e) => setTestInput(e.target.value)}
                     rows={10}
