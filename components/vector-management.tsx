@@ -104,7 +104,7 @@ export function VectorManagement() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Tab状态
-  const [activeTab, setActiveTab] = useState('knowledge')
+  const [activeTab, setActiveTab] = useState('import-tasks')
 
   // 搜索参数
   const [searchParams, setSearchParams] = useState<SearchParams>({
@@ -565,16 +565,23 @@ export function VectorManagement() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="inline-flex w-full md:w-1/3">
-          <TabsTrigger 
-            value="knowledge" 
+        <TabsList className="inline-flex w-full md:w-1/2">
+          <TabsTrigger
+            value="import-tasks"
+            className="flex items-center gap-2 data-[state=active]:text-primary data-[state=active]:font-semibold flex-1"
+          >
+            <Upload className="h-4 w-4" />
+            样本导入任务
+          </TabsTrigger>
+          <TabsTrigger
+            value="sample-detail"
             className="flex items-center gap-2 data-[state=active]:text-primary data-[state=active]:font-semibold flex-1"
           >
             <Database className="h-4 w-4" />
-            向量知识库
+            样本详情
           </TabsTrigger>
-          <TabsTrigger 
-            value="test" 
+          <TabsTrigger
+            value="test"
             className="flex items-center gap-2 data-[state=active]:text-primary data-[state=active]:font-semibold flex-1"
           >
             <Play className="h-4 w-4" />
@@ -582,8 +589,151 @@ export function VectorManagement() {
           </TabsTrigger>
         </TabsList>
 
-        {/* 向量知识库 Tab */}
-        <TabsContent value="knowledge" className="space-y-4">
+        {/* 样本导入任务 Tab */}
+        <TabsContent value="import-tasks" className="space-y-4">
+          {/* 导入操作区 */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              className="text-white hover:bg-green-600 hover:text-white bg-primary"
+              onClick={handleImport}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Excel 导入
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+          </div>
+
+          {/* 任务列表 */}
+          <Card>
+            <CardContent className="p-0">
+              {importTasks.length === 0 ? (
+                <div className="py-16 text-center text-muted-foreground">
+                  <Upload className="mx-auto mb-3 h-10 w-10 opacity-25" />
+                  <p className="text-sm">暂无导入任务，请点击"Excel 导入"上传文件</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>任务ID</TableHead>
+                      <TableHead>文件名</TableHead>
+                      <TableHead className="text-center">总行数</TableHead>
+                      <TableHead className="text-center">成功</TableHead>
+                      <TableHead className="text-center">失败</TableHead>
+                      <TableHead>状态</TableHead>
+                      <TableHead>提交时间</TableHead>
+                      <TableHead>完成时间</TableHead>
+                      <TableHead>备注</TableHead>
+                      <TableHead className="w-[80px]">操作</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {importTasks.map((task) => {
+                      const statusMap = {
+                        pending: { label: '等待中', variant: 'outline' as const },
+                        processing: { label: '处理中', variant: 'secondary' as const },
+                        success: { label: '成功', variant: 'default' as const },
+                        failed: { label: '失败', variant: 'destructive' as const },
+                      }
+                      const cfg = statusMap[task.status]
+                      return (
+                        <TableRow key={task.taskId}>
+                          <TableCell className="font-mono text-xs">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="max-w-[80px] block truncate cursor-help">
+                                    {task.taskId}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{task.taskId}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </TableCell>
+                          <TableCell>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="max-w-[140px] block truncate cursor-help text-sm">
+                                    {task.fileName}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{task.fileName}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </TableCell>
+                          <TableCell className="text-center">{task.totalRows || '-'}</TableCell>
+                          <TableCell className="text-center">
+                            <span className="text-green-600 font-medium">{task.successRows || '-'}</span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className={task.failedRows > 0 ? 'text-destructive font-medium' : ''}>
+                              {task.totalRows ? task.failedRows : '-'}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={cfg.variant} className="flex w-fit items-center gap-1">
+                              {task.status === 'processing' && (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              )}
+                              {cfg.label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                            {task.createdAt}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                            {task.finishedAt ?? '-'}
+                          </TableCell>
+                          <TableCell>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="max-w-[100px] block truncate text-xs text-muted-foreground cursor-help">
+                                    {task.message || '-'}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="max-w-sm whitespace-pre-wrap">{task.message || '-'}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </TableCell>
+                          <TableCell>
+                            {task.status === 'failed' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => handleRetryTask(task)}
+                              >
+                                重试
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* 样本详情 Tab */}
+        <TabsContent value="sample-detail" className="space-y-4">
           {/* 搜索区域 */}
           <Card className="p-6">
             <div className="space-y-4">
@@ -660,22 +810,10 @@ export function VectorManagement() {
 
           {/* 操作按钮 */}
           <div className="flex items-center gap-2">
-            <Button variant="outline" className="text-white hover:bg-green-600 hover:text-white bg-primary" onClick={handleImport}>
-              <Upload className="mr-2 h-4 w-4" />
-              Excel 导入
-            </Button>
-            <ImportTaskPanel tasks={importTasks} onRetry={handleRetryTask} />
             <Button onClick={handleAdd}>
               <Plus className="mr-2 h-4 w-4" />
               新增样本
             </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx,.xls"
-              className="hidden"
-              onChange={handleFileChange}
-            />
           </div>
 
           {/* 数据表格 */}

@@ -22,18 +22,6 @@ export default function HomePage() {
               </div>
             )}
             
-            {activeMenu === 'template-management' && (
-              <div>
-                <TemplateManagement />
-              </div>
-            )}
-            
-            {activeMenu === 'model-management' && (
-              <div>
-                <ModelManagement />
-              </div>
-            )}
-            
             {activeMenu === 'vector-management' && (
               <div>
                 <VectorManagement />
@@ -47,6 +35,4 @@ export default function HomePage() {
 }
 
 // 导入组件
-import { TemplateManagement } from '@/components/template-management'
-import { ModelManagement } from '@/components/model-management'
 import { VectorManagement } from '@/components/vector-management'

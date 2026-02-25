@@ -42,22 +42,6 @@ export function AppSidebar({ activeMenu, setActiveMenu }: AppSidebarProps) {
                     <SidebarMenuSub>
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton
-                          onClick={() => setActiveMenu('template-management')}
-                          isActive={activeMenu === 'template-management'}
-                        >
-                          <span>模版管理</span>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton
-                          onClick={() => setActiveMenu('model-management')}
-                          isActive={activeMenu === 'model-management'}
-                        >
-                          <span>模型配置</span>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton
                           onClick={() => setActiveMenu('vector-management')}
                           isActive={activeMenu === 'vector-management'}
                         >
