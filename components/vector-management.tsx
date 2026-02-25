@@ -66,6 +66,7 @@ import {
   Eye,
   ListChecks,
   Info,
+  Download,
 } from 'lucide-react'
 import { type ImportTask } from '@/components/import-task-panel'
 
@@ -87,6 +88,7 @@ interface VectorData {
 
 // 任务详情记录类型（展示用）
 interface TaskDetailRecord {
+  taskId: string
   uniqueId: string
   rawText: string
   primaryLabel: string
@@ -237,6 +239,7 @@ export function VectorManagement() {
   // 任务详情搜索参数
   const [detailSearchParams, setDetailSearchParams] = useState({
     taskId: '',
+    status: '',
   })
 
   // 任务详情记录列表
@@ -583,24 +586,33 @@ export function VectorManagement() {
     )
     setCurrentTaskDetail(task || null)
     // 查询该任务关联的样本记录
-    const records = allVectorData
+    let filtered = allVectorData
       .filter(d => d.taskId && d.taskId.toLowerCase().includes(detailSearchParams.taskId.toLowerCase()))
-      .map(d => ({
-        uniqueId: d.uniqueId,
-        rawText: d.rawText,
-        primaryLabel: d.primaryLabel,
-        subLabel: d.subLabel,
-        status: d.status === 1 ? '已清洗' : d.status === 2 ? '已入ES' : '作废',
-        remark: d.remark || '',
-        createdAt: d.createdAt,
-        finishedAt: d.finishedAt || '-',
-      }))
+    // 按状态过滤
+    if (detailSearchParams.status && detailSearchParams.status !== 'all') {
+      const statusVal = detailSearchParams.status === 'success' ? 1 : 0
+      filtered = filtered.filter(d => {
+        if (detailSearchParams.status === 'success') return d.status === 1 || d.status === 2
+        return d.status === 0
+      })
+    }
+    const records = filtered.map(d => ({
+      taskId: d.taskId || '',
+      uniqueId: d.uniqueId,
+      rawText: d.rawText,
+      primaryLabel: d.primaryLabel,
+      subLabel: d.subLabel,
+      status: d.status === 1 ? '已清洗' : d.status === 2 ? '已入ES' : '作废',
+      remark: d.remark || '',
+      createdAt: d.createdAt,
+      finishedAt: d.finishedAt || '-',
+    }))
     setTaskDetailRecords(records)
     toast({ title: '查询成功', description: `共查询到 ${records.length} 条样本记录` })
   }
 
   const handleDetailReset = () => {
-    setDetailSearchParams({ taskId: '' })
+    setDetailSearchParams({ taskId: '', status: '' })
     setCurrentTaskDetail(null)
     setTaskDetailRecords([])
     toast({ title: '重置成功' })
@@ -609,11 +621,12 @@ export function VectorManagement() {
   // 查看任务详情
   const handleViewTaskDetail = (task: ImportTask) => {
     setCurrentTaskDetail(task)
-    setDetailSearchParams({ taskId: task.taskId })
+    setDetailSearchParams({ taskId: task.taskId, status: '' })
     // 查询该任务关联的样本记录
     const records = allVectorData
       .filter(d => d.taskId === task.taskId)
       .map(d => ({
+        taskId: d.taskId || '',
         uniqueId: d.uniqueId,
         rawText: d.rawText,
         primaryLabel: d.primaryLabel,
@@ -778,7 +791,6 @@ export function VectorManagement() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>任务ID</TableHead>
-                      <TableHead>文件名</TableHead>
                       <TableHead className="text-center">总行数</TableHead>
                       <TableHead className="text-center">成功</TableHead>
                       <TableHead className="text-center">失败</TableHead>
@@ -813,20 +825,6 @@ export function VectorManagement() {
                                 </TooltipTrigger>
                                 <TooltipContent>
                                   <p>{task.taskId}</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </TableCell>
-                          <TableCell>
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <span className="max-w-[140px] block truncate cursor-help text-sm">
-                                    {task.fileName}
-                                  </span>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>{task.fileName}</p>
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
@@ -1214,7 +1212,22 @@ export function VectorManagement() {
                     onChange={(e) => setDetailSearchParams({ ...detailSearchParams, taskId: e.target.value })}
                   />
                 </div>
-                <div className="hidden md:block" />
+                <div className="space-y-2">
+                  <Label>状态</Label>
+                  <Select
+                    value={detailSearchParams.status}
+                    onValueChange={(value) => setDetailSearchParams({ ...detailSearchParams, status: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="全部状态" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部状态</SelectItem>
+                      <SelectItem value="success">成功</SelectItem>
+                      <SelectItem value="failed">失败</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="hidden md:block" />
               </div>
               <div className="flex gap-2 justify-end">
@@ -1230,30 +1243,20 @@ export function VectorManagement() {
             </div>
           </Card>
 
-          {/* 返回按钮 */}
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setActiveTab('import-tasks')}
-            >
-              <ChevronLeft className="mr-1 h-4 w-4" />
-              返回任务列表
-            </Button>
-            {currentTaskDetail && (
-              <span className="text-sm text-muted-foreground">
-                当前任务: <span className="font-mono">{currentTaskDetail.taskId}</span>
-                {' / '}
-                文件: {currentTaskDetail.fileName}
-                {' / '}
-                总行数: {currentTaskDetail.totalRows}
-                {' / '}
-                成功: <span className="text-green-600">{currentTaskDetail.successRows}</span>
-                {' / '}
-                失败: <span className={currentTaskDetail.failedRows > 0 ? 'text-destructive' : ''}>{currentTaskDetail.failedRows}</span>
-              </span>
-            )}
-          </div>
+          {/* 任务摘要 */}
+          {currentTaskDetail && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>当前任务: <span className="font-mono">{currentTaskDetail.taskId}</span></span>
+              <span className="text-border">|</span>
+              <span>文件: {currentTaskDetail.fileName}</span>
+              <span className="text-border">|</span>
+              <span>总行数: {currentTaskDetail.totalRows}</span>
+              <span className="text-border">|</span>
+              <span>成功: <span className="text-green-600 font-medium">{currentTaskDetail.successRows}</span></span>
+              <span className="text-border">|</span>
+              <span>失败: <span className={currentTaskDetail.failedRows > 0 ? 'text-destructive font-medium' : ''}>{currentTaskDetail.failedRows}</span></span>
+            </div>
+          )}
 
           {/* 样本记录表格 */}
           <Card>
@@ -1267,6 +1270,7 @@ export function VectorManagement() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>任务ID</TableHead>
                       <TableHead>唯一ID</TableHead>
                       <TableHead>原始文本</TableHead>
                       <TableHead>基础标签</TableHead>
@@ -1280,6 +1284,20 @@ export function VectorManagement() {
                   <TableBody>
                     {taskDetailRecords.map((record) => (
                       <TableRow key={record.uniqueId}>
+                        <TableCell className="font-mono text-xs">
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="max-w-[80px] block truncate cursor-help">
+                                  {record.taskId}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>{record.taskId}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </TableCell>
                         <TableCell className="font-mono text-xs">{record.uniqueId}</TableCell>
                         <TableCell>
                           <TooltipProvider>
@@ -1554,6 +1572,32 @@ export function VectorManagement() {
             <DialogDescription>从Excel文件批量导入向量数据</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* 下载模板 */}
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-muted-foreground shrink-0">下载模板:</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  // 生成模板CSV并下载
+                  const header = '唯一ID,原始文本,基础标签,子标签,核心话术,上下文'
+                  const example = 'UID_001,示例原始文本,政策合规,退款说明,示例核心话术,示例上下文'
+                  const csvContent = '\uFEFF' + header + '\n' + example
+                  const blob = new Blob([csvContent], { type: 'application/vnd.ms-excel;charset=utf-8' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = '导入模板.xlsx'
+                  a.click()
+                  URL.revokeObjectURL(url)
+                  toast({ title: '模板下载成功' })
+                }}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                下载导入模板
+              </Button>
+            </div>
+
             <div className="border-2 border-dashed rounded-lg p-8 text-center">
               <FileSpreadsheet className="mx-auto h-12 w-12 text-muted-foreground" />
               <p className="mt-4 text-sm text-muted-foreground">
