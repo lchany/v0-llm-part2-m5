@@ -210,7 +210,22 @@ export function VectorManagement() {
   ]
   
   // 导入任务列表
+  const [allImportTasks, setAllImportTasks] = useState<ImportTask[]>([])
   const [importTasks, setImportTasks] = useState<ImportTask[]>([])
+
+  // 导入任务搜索参数
+  const [taskSearchParams, setTaskSearchParams] = useState({
+    taskId: '',
+    fileName: '',
+    status: '',
+  })
+
+  // 任务详情搜索参数（按样本记录搜索）
+  const [detailSearchParams, setDetailSearchParams] = useState({
+    taskId: '',
+    fileName: '',
+    status: '',
+  })
 
   // 加载状态
   const [loading, setLoading] = useState(false)
@@ -435,6 +450,7 @@ export function VectorManagement() {
         message: '任务已提交，等待后端处理...',
         createdAt: nowStr(),
       }
+      setAllImportTasks((prev) => [newTask, ...prev])
       setImportTasks((prev) => [newTask, ...prev])
       setIsImportDialogOpen(false)
       setShowImportHint(true)
@@ -446,13 +462,10 @@ export function VectorManagement() {
 
       // 模拟后端异步处理：先变为 processing
       setTimeout(() => {
-        setImportTasks((prev) =>
-          prev.map((t) =>
-            t.taskId === taskId
-              ? { ...t, status: 'processing', message: '后端正在解析文件并入库...' }
-              : t
-          )
-        )
+        const updateProcessing = (t: ImportTask) =>
+          t.taskId === taskId ? { ...t, status: 'processing' as const, message: '后端正在解析文件并入库...' } : t
+        setAllImportTasks((prev) => prev.map(updateProcessing))
+        setImportTasks((prev) => prev.map(updateProcessing))
       }, 1500)
 
       // 模拟后端处理完成
@@ -477,24 +490,23 @@ export function VectorManagement() {
         setAllVectorData(updatedData)
         setVectorData(updatedData)
 
-        setImportTasks((prev) =>
-          prev.map((t) =>
-            t.taskId === taskId
-              ? {
-                  ...t,
-                  status: simulatedFailed > 0 ? 'success' : 'success',
-                  totalRows: simulatedTotal,
-                  successRows: simulatedSuccess,
-                  failedRows: simulatedFailed,
-                  message:
-                    simulatedFailed > 0
-                      ? `导入完成，${simulatedFailed} 条记录因格式错误跳过`
-                      : '全部记录导入成功',
-                  finishedAt: nowStr(),
-                }
-              : t
-          )
-        )
+        const updateComplete = (t: ImportTask): ImportTask =>
+          t.taskId === taskId
+            ? {
+                ...t,
+                status: 'success',
+                totalRows: simulatedTotal,
+                successRows: simulatedSuccess,
+                failedRows: simulatedFailed,
+                message:
+                  simulatedFailed > 0
+                    ? `导入完成，${simulatedFailed} 条记录因格式错误跳过`
+                    : '全部记录导入成功',
+                finishedAt: nowStr(),
+              }
+            : t
+        setAllImportTasks((prev) => prev.map(updateComplete))
+        setImportTasks((prev) => prev.map(updateComplete))
 
         toast({
           title: '导入完成',
@@ -511,6 +523,77 @@ export function VectorManagement() {
   // 最近是否有新导入任务（用于在样本详情上方显示提示）
   const [showImportHint, setShowImportHint] = useState(false)
 
+  // 导入任务搜索
+  const handleTaskSearch = () => {
+    let filtered = [...allImportTasks]
+    if (taskSearchParams.taskId) {
+      filtered = filtered.filter(t =>
+        t.taskId.toLowerCase().includes(taskSearchParams.taskId.toLowerCase())
+      )
+    }
+    if (taskSearchParams.fileName) {
+      filtered = filtered.filter(t =>
+        t.fileName.toLowerCase().includes(taskSearchParams.fileName.toLowerCase())
+      )
+    }
+    if (taskSearchParams.status && taskSearchParams.status !== 'all') {
+      filtered = filtered.filter(t => {
+        if (taskSearchParams.status === 'partial') {
+          return t.status === 'success' && t.failedRows > 0
+        }
+        if (taskSearchParams.status === 'success') {
+          return t.status === 'success' && t.failedRows === 0
+        }
+        return t.status === taskSearchParams.status
+      })
+    }
+    setImportTasks(filtered)
+    toast({ title: '查询成功', description: `共查询到 ${filtered.length} 条任务` })
+  }
+
+  const handleTaskReset = () => {
+    setTaskSearchParams({ taskId: '', fileName: '', status: '' })
+    setImportTasks(allImportTasks)
+    toast({ title: '重置成功' })
+  }
+
+  // 任务详情搜索
+  const handleDetailSearch = () => {
+    let filtered = [...allImportTasks]
+    if (detailSearchParams.taskId) {
+      filtered = filtered.filter(t =>
+        t.taskId.toLowerCase().includes(detailSearchParams.taskId.toLowerCase())
+      )
+    }
+    if (detailSearchParams.fileName) {
+      filtered = filtered.filter(t =>
+        t.fileName.toLowerCase().includes(detailSearchParams.fileName.toLowerCase())
+      )
+    }
+    if (detailSearchParams.status && detailSearchParams.status !== 'all') {
+      filtered = filtered.filter(t => {
+        if (detailSearchParams.status === 'partial') {
+          return t.status === 'success' && t.failedRows > 0
+        }
+        if (detailSearchParams.status === 'success') {
+          return t.status === 'success' && t.failedRows === 0
+        }
+        return t.status === detailSearchParams.status
+      })
+    }
+    if (filtered.length > 0) {
+      setCurrentTaskDetail(filtered[0])
+    } else {
+      setCurrentTaskDetail(null)
+    }
+    toast({ title: '查询成功', description: `共查询到 ${filtered.length} 条匹配任务` })
+  }
+
+  const handleDetailReset = () => {
+    setDetailSearchParams({ taskId: '', fileName: '', status: '' })
+    toast({ title: '重置成功' })
+  }
+
   // 查看任务详情
   const handleViewTaskDetail = (task: ImportTask) => {
     setCurrentTaskDetail(task)
@@ -519,13 +602,12 @@ export function VectorManagement() {
 
   // 重试失败任务
   const handleRetryTask = (task: ImportTask) => {
-    setImportTasks((prev) =>
-      prev.map((t) =>
-        t.taskId === task.taskId
-          ? { ...t, status: 'pending', message: '任务已重新提交，等待处理...', finishedAt: undefined }
-          : t
-      )
-    )
+    const updateRetry = (t: ImportTask): ImportTask =>
+      t.taskId === task.taskId
+        ? { ...t, status: 'pending', message: '任务已重新提交，等待处理...', finishedAt: undefined }
+        : t
+    setAllImportTasks((prev) => prev.map(updateRetry))
+    setImportTasks((prev) => prev.map(updateRetry))
     toast({ title: '重试已提交', description: `任务 ${task.taskId} 已重新加入队列` })
   }
 
@@ -593,15 +675,13 @@ export function VectorManagement() {
             <Upload className="h-4 w-4" />
             样本导入任务
           </TabsTrigger>
-          {currentTaskDetail && (
-            <TabsTrigger
-              value="task-detail"
-              className="flex items-center gap-2 data-[state=active]:text-primary data-[state=active]:font-semibold flex-1"
-            >
-              <ListChecks className="h-4 w-4" />
-              任务详情
-            </TabsTrigger>
-          )}
+          <TabsTrigger
+            value="task-detail"
+            className="flex items-center gap-2 data-[state=active]:text-primary data-[state=active]:font-semibold flex-1"
+          >
+            <ListChecks className="h-4 w-4" />
+            任务详情
+          </TabsTrigger>
           <TabsTrigger
             value="test"
             className="flex items-center gap-2 data-[state=active]:text-primary data-[state=active]:font-semibold flex-1"
@@ -613,6 +693,59 @@ export function VectorManagement() {
 
         {/* 样本导入任务 Tab */}
         <TabsContent value="import-tasks" className="space-y-4">
+          {/* 搜索区域 */}
+          <Card className="p-6">
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>任务ID</Label>
+                  <Input
+                    placeholder="请输入任务ID"
+                    value={taskSearchParams.taskId}
+                    onChange={(e) => setTaskSearchParams({ ...taskSearchParams, taskId: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>文件名</Label>
+                  <Input
+                    placeholder="请输入文件名"
+                    value={taskSearchParams.fileName}
+                    onChange={(e) => setTaskSearchParams({ ...taskSearchParams, fileName: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>状态</Label>
+                  <Select
+                    value={taskSearchParams.status}
+                    onValueChange={(value) => setTaskSearchParams({ ...taskSearchParams, status: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="全部状态" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部状态</SelectItem>
+                      <SelectItem value="pending">等待中</SelectItem>
+                      <SelectItem value="processing">处理中</SelectItem>
+                      <SelectItem value="success">成功</SelectItem>
+                      <SelectItem value="partial">部分成功</SelectItem>
+                      <SelectItem value="failed">失败</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button onClick={handleTaskSearch}>
+                  <Search className="mr-2 h-4 w-4" />
+                  搜索
+                </Button>
+                <Button variant="outline" onClick={handleTaskReset}>
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  重置
+                </Button>
+              </div>
+            </div>
+          </Card>
+
           {/* 任务列表 */}
           <Card>
             <CardContent className="p-0">
@@ -639,13 +772,16 @@ export function VectorManagement() {
                   </TableHeader>
                   <TableBody>
                     {importTasks.map((task) => {
+                      const isPartialSuccess = task.status === 'success' && task.failedRows > 0
                       const statusMap = {
                         pending: { label: '等待中', variant: 'outline' as const },
                         processing: { label: '处理中', variant: 'secondary' as const },
                         success: { label: '成功', variant: 'default' as const },
                         failed: { label: '失败', variant: 'destructive' as const },
                       }
-                      const cfg = statusMap[task.status]
+                      const cfg = isPartialSuccess
+                        ? { label: '部分成功', variant: 'secondary' as const }
+                        : statusMap[task.status]
                       return (
                         <TableRow key={task.taskId}>
                           <TableCell className="font-mono text-xs">
@@ -1047,6 +1183,59 @@ export function VectorManagement() {
 
         {/* 任务详情 Tab */}
         <TabsContent value="task-detail" className="space-y-4">
+          {/* 搜索区域 */}
+          <Card className="p-6">
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>任务ID</Label>
+                  <Input
+                    placeholder="请输入任务ID"
+                    value={detailSearchParams.taskId}
+                    onChange={(e) => setDetailSearchParams({ ...detailSearchParams, taskId: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>文件名</Label>
+                  <Input
+                    placeholder="请输入文件名"
+                    value={detailSearchParams.fileName}
+                    onChange={(e) => setDetailSearchParams({ ...detailSearchParams, fileName: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>状态</Label>
+                  <Select
+                    value={detailSearchParams.status}
+                    onValueChange={(value) => setDetailSearchParams({ ...detailSearchParams, status: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="全部状态" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部状态</SelectItem>
+                      <SelectItem value="pending">等待中</SelectItem>
+                      <SelectItem value="processing">处理中</SelectItem>
+                      <SelectItem value="success">成功</SelectItem>
+                      <SelectItem value="partial">部分成功</SelectItem>
+                      <SelectItem value="failed">失败</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button onClick={handleDetailSearch}>
+                  <Search className="mr-2 h-4 w-4" />
+                  搜索
+                </Button>
+                <Button variant="outline" onClick={handleDetailReset}>
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  重置
+                </Button>
+              </div>
+            </div>
+          </Card>
+
           {currentTaskDetail ? (
             <div className="space-y-4">
               <div className="flex items-center gap-2">
@@ -1074,26 +1263,33 @@ export function VectorManagement() {
                     </div>
                     <div className="space-y-1">
                       <p className="text-sm text-muted-foreground">状态</p>
-                      <Badge
-                        variant={
-                          currentTaskDetail.status === 'success'
-                            ? 'default'
-                            : currentTaskDetail.status === 'failed'
-                              ? 'destructive'
-                              : currentTaskDetail.status === 'processing'
+                      {(() => {
+                        const isPartial = currentTaskDetail.status === 'success' && currentTaskDetail.failedRows > 0
+                        return (
+                          <Badge
+                            variant={
+                              isPartial
                                 ? 'secondary'
-                                : 'outline'
-                        }
-                        className="flex w-fit items-center gap-1"
-                      >
-                        {currentTaskDetail.status === 'processing' && (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        )}
-                        {currentTaskDetail.status === 'pending' && '等待中'}
-                        {currentTaskDetail.status === 'processing' && '处理中'}
-                        {currentTaskDetail.status === 'success' && '成功'}
-                        {currentTaskDetail.status === 'failed' && '失败'}
-                      </Badge>
+                                : currentTaskDetail.status === 'success'
+                                  ? 'default'
+                                  : currentTaskDetail.status === 'failed'
+                                    ? 'destructive'
+                                    : currentTaskDetail.status === 'processing'
+                                      ? 'secondary'
+                                      : 'outline'
+                            }
+                            className="flex w-fit items-center gap-1"
+                          >
+                            {currentTaskDetail.status === 'processing' && (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            )}
+                            {currentTaskDetail.status === 'pending' && '等待中'}
+                            {currentTaskDetail.status === 'processing' && '处理中'}
+                            {currentTaskDetail.status === 'success' && (isPartial ? '部分成功' : '成功')}
+                            {currentTaskDetail.status === 'failed' && '失败'}
+                          </Badge>
+                        )
+                      })()}
                     </div>
                     <div className="space-y-1">
                       <p className="text-sm text-muted-foreground">提交时间</p>
