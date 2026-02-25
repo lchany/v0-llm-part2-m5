@@ -64,6 +64,7 @@ import {
   FileSpreadsheet,
   Loader2,
 } from 'lucide-react'
+import { ImportTaskPanel, type ImportTask } from '@/components/import-task-panel'
 
 // 向量数据类型
 interface VectorData {
@@ -202,6 +203,9 @@ export function VectorManagement() {
     { value: 'gemini-pro', label: 'Gemini Pro' },
   ]
   
+  // 导入任务列表
+  const [importTasks, setImportTasks] = useState<ImportTask[]>([])
+
   // 加载状态
   const [loading, setLoading] = useState(false)
 
@@ -402,65 +406,115 @@ export function VectorManagement() {
     fileInputRef.current?.click()
   }
   
+  const nowStr = () =>
+    new Date()
+      .toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      })
+      .replace(/\//g, '-')
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      // 模拟导入
-      setLoading(true)
+      // 创建异步任务，立即关闭弹窗并展示任务已提交
+      const taskId = `TASK_${Date.now()}`
+      const newTask: ImportTask = {
+        taskId,
+        fileName: file.name,
+        totalRows: 0,
+        successRows: 0,
+        failedRows: 0,
+        status: 'pending',
+        message: '任务已提交，等待后端处理...',
+        createdAt: nowStr(),
+      }
+      setImportTasks((prev) => [newTask, ...prev])
+      setIsImportDialogOpen(false)
+
+      toast({
+        title: '任务已提交',
+        description: `文件 "${file.name}" 已提交异步处理，可在"导入任务"中查看进度`,
+      })
+
+      // 模拟后端异步处理：先变为 processing
       setTimeout(() => {
-        const importedData: VectorData[] = [
-          {
-            id: Date.now(),
-            uniqueId: `UID_${Date.now()}`,
-            rawText: '客户：我想了解退款政策。客服：好的，我来为您详细说明。',
-            primaryLabel: '政策合规',
-            subLabel: '退款说明',
-            cleanFocus: '从Excel导入的数据1',
-            cleanContext: 'Excel导入的上下文1',
-            status: 1,
-            createdAt: new Date().toLocaleString('zh-CN', {
-              year: 'numeric',
-              month: '2-digit',
-              day: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit',
-            }).replace(/\//g, '-'),
-          },
-          {
-            id: Date.now() + 1,
-            uniqueId: `UID_${Date.now() + 1}`,
-            rawText: '客户：产品有破损。客服：请您拍照上传，我们会尽快处理。',
-            primaryLabel: '售后支持',
-            subLabel: '产品破损',
-            cleanFocus: '从Excel导入的数据2',
-            cleanContext: 'Excel导入的上下文2',
-            status: 2,
-            createdAt: new Date().toLocaleString('zh-CN', {
-              year: 'numeric',
-              month: '2-digit',
-              day: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit',
-            }).replace(/\//g, '-'),
-          },
-        ]
+        setImportTasks((prev) =>
+          prev.map((t) =>
+            t.taskId === taskId
+              ? { ...t, status: 'processing', message: '后端正在解析文件并入库...' }
+              : t
+          )
+        )
+      }, 1500)
+
+      // 模拟后端处理完成
+      setTimeout(() => {
+        const simulatedTotal = Math.floor(Math.random() * 50) + 10
+        const simulatedFailed = Math.floor(Math.random() * 3)
+        const simulatedSuccess = simulatedTotal - simulatedFailed
+
+        const importedData: VectorData[] = Array.from({ length: simulatedSuccess }, (_, i) => ({
+          id: Date.now() + i,
+          uniqueId: `UID_${Date.now() + i}`,
+          rawText: `从 ${file.name} 导入的原始话术第 ${i + 1} 条`,
+          primaryLabel: ['政策合规', '售后支持', 'VIP服务', '通用FAQ'][i % 4],
+          subLabel: ['退款说明', '产品破损', '客服通道', '账号注册'][i % 4],
+          cleanFocus: '',
+          cleanContext: '',
+          status: 1,
+          createdAt: nowStr(),
+        }))
+
         const updatedData = [...allVectorData, ...importedData]
         setAllVectorData(updatedData)
         setVectorData(updatedData)
-        setLoading(false)
-        setIsImportDialogOpen(false)
+
+        setImportTasks((prev) =>
+          prev.map((t) =>
+            t.taskId === taskId
+              ? {
+                  ...t,
+                  status: simulatedFailed > 0 ? 'success' : 'success',
+                  totalRows: simulatedTotal,
+                  successRows: simulatedSuccess,
+                  failedRows: simulatedFailed,
+                  message:
+                    simulatedFailed > 0
+                      ? `导入完成，${simulatedFailed} 条记录因格式错误跳过`
+                      : '全部记录导入成功',
+                  finishedAt: nowStr(),
+                }
+              : t
+          )
+        )
+
         toast({
-          title: '导入成功',
-          description: `成功导入 ${importedData.length} 条向量数据`,
+          title: '导入完成',
+          description: `成功 ${simulatedSuccess} 条，失败 ${simulatedFailed} 条`,
         })
-      }, 1500)
+      }, 5000)
     }
     // 重置input
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
+  }
+
+  // 重试失败任务
+  const handleRetryTask = (task: ImportTask) => {
+    setImportTasks((prev) =>
+      prev.map((t) =>
+        t.taskId === task.taskId
+          ? { ...t, status: 'pending', message: '任务已重新提交，等待处理...', finishedAt: undefined }
+          : t
+      )
+    )
+    toast({ title: '重试已提交', description: `任务 ${task.taskId} 已重新加入队列` })
   }
 
   // 实时调测
@@ -605,11 +659,12 @@ export function VectorManagement() {
           </Card>
 
           {/* 操作按钮 */}
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <Button variant="outline" className="text-white hover:bg-green-600 hover:text-white bg-primary" onClick={handleImport}>
               <Upload className="mr-2 h-4 w-4" />
               Excel 导入
             </Button>
+            <ImportTaskPanel tasks={importTasks} onRetry={handleRetryTask} />
             <Button onClick={handleAdd}>
               <Plus className="mr-2 h-4 w-4" />
               新增样本
