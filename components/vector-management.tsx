@@ -68,7 +68,20 @@ import {
   Info,
   Download,
 } from 'lucide-react'
-import { type ImportTask } from '@/components/import-task-panel'
+// 导入任务类型
+type ImportTaskStatus = 'pending' | 'processing' | 'success' | 'failed'
+
+interface ImportTask {
+  taskId: string
+  fileName: string
+  totalRows: number
+  successRows: number
+  failedRows: number
+  status: ImportTaskStatus
+  message: string
+  createdAt: string
+  finishedAt?: string
+}
 
 // 向量数据类型
 interface VectorData {
