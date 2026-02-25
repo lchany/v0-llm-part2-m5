@@ -216,15 +216,12 @@ export function VectorManagement() {
   // 导入任务搜索参数
   const [taskSearchParams, setTaskSearchParams] = useState({
     taskId: '',
-    fileName: '',
     status: '',
   })
 
-  // 任务详情搜索参数（按样本记录搜索）
+  // 任务详情搜索参数
   const [detailSearchParams, setDetailSearchParams] = useState({
     taskId: '',
-    fileName: '',
-    status: '',
   })
 
   // 加载状态
@@ -531,11 +528,6 @@ export function VectorManagement() {
         t.taskId.toLowerCase().includes(taskSearchParams.taskId.toLowerCase())
       )
     }
-    if (taskSearchParams.fileName) {
-      filtered = filtered.filter(t =>
-        t.fileName.toLowerCase().includes(taskSearchParams.fileName.toLowerCase())
-      )
-    }
     if (taskSearchParams.status && taskSearchParams.status !== 'all') {
       filtered = filtered.filter(t => {
         if (taskSearchParams.status === 'partial') {
@@ -552,7 +544,7 @@ export function VectorManagement() {
   }
 
   const handleTaskReset = () => {
-    setTaskSearchParams({ taskId: '', fileName: '', status: '' })
+    setTaskSearchParams({ taskId: '', status: '' })
     setImportTasks(allImportTasks)
     toast({ title: '重置成功' })
   }
@@ -565,22 +557,6 @@ export function VectorManagement() {
         t.taskId.toLowerCase().includes(detailSearchParams.taskId.toLowerCase())
       )
     }
-    if (detailSearchParams.fileName) {
-      filtered = filtered.filter(t =>
-        t.fileName.toLowerCase().includes(detailSearchParams.fileName.toLowerCase())
-      )
-    }
-    if (detailSearchParams.status && detailSearchParams.status !== 'all') {
-      filtered = filtered.filter(t => {
-        if (detailSearchParams.status === 'partial') {
-          return t.status === 'success' && t.failedRows > 0
-        }
-        if (detailSearchParams.status === 'success') {
-          return t.status === 'success' && t.failedRows === 0
-        }
-        return t.status === detailSearchParams.status
-      })
-    }
     if (filtered.length > 0) {
       setCurrentTaskDetail(filtered[0])
     } else {
@@ -590,7 +566,8 @@ export function VectorManagement() {
   }
 
   const handleDetailReset = () => {
-    setDetailSearchParams({ taskId: '', fileName: '', status: '' })
+    setDetailSearchParams({ taskId: '' })
+    setCurrentTaskDetail(null)
     toast({ title: '重置成功' })
   }
 
@@ -706,14 +683,6 @@ export function VectorManagement() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>文件名</Label>
-                  <Input
-                    placeholder="请输入文件名"
-                    value={taskSearchParams.fileName}
-                    onChange={(e) => setTaskSearchParams({ ...taskSearchParams, fileName: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
                   <Label>状态</Label>
                   <Select
                     value={taskSearchParams.status}
@@ -732,6 +701,7 @@ export function VectorManagement() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="hidden md:block" />
               </div>
               <div className="flex gap-2 justify-end">
                 <Button onClick={handleTaskSearch}>
@@ -1195,33 +1165,8 @@ export function VectorManagement() {
                     onChange={(e) => setDetailSearchParams({ ...detailSearchParams, taskId: e.target.value })}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>文件名</Label>
-                  <Input
-                    placeholder="请输入文件名"
-                    value={detailSearchParams.fileName}
-                    onChange={(e) => setDetailSearchParams({ ...detailSearchParams, fileName: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>状态</Label>
-                  <Select
-                    value={detailSearchParams.status}
-                    onValueChange={(value) => setDetailSearchParams({ ...detailSearchParams, status: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="全部状态" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">全部状态</SelectItem>
-                      <SelectItem value="pending">等待中</SelectItem>
-                      <SelectItem value="processing">处理中</SelectItem>
-                      <SelectItem value="success">成功</SelectItem>
-                      <SelectItem value="partial">部分成功</SelectItem>
-                      <SelectItem value="failed">失败</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <div className="hidden md:block" />
+                <div className="hidden md:block" />
               </div>
               <div className="flex gap-2 justify-end">
                 <Button onClick={handleDetailSearch}>
@@ -1250,109 +1195,98 @@ export function VectorManagement() {
               </div>
 
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">任务详情</CardTitle>
-                  <CardDescription>任务ID: {currentTaskDetail.taskId}</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* 基本信息 */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="space-y-1">
-                      <p className="text-sm text-muted-foreground">文件名</p>
-                      <p className="text-sm font-medium break-all">{currentTaskDetail.fileName}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm text-muted-foreground">状态</p>
-                      {(() => {
-                        const isPartial = currentTaskDetail.status === 'success' && currentTaskDetail.failedRows > 0
-                        return (
-                          <Badge
-                            variant={
-                              isPartial
-                                ? 'secondary'
-                                : currentTaskDetail.status === 'success'
-                                  ? 'default'
-                                  : currentTaskDetail.status === 'failed'
-                                    ? 'destructive'
-                                    : currentTaskDetail.status === 'processing'
-                                      ? 'secondary'
-                                      : 'outline'
-                            }
-                            className="flex w-fit items-center gap-1"
-                          >
-                            {currentTaskDetail.status === 'processing' && (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            )}
-                            {currentTaskDetail.status === 'pending' && '等待中'}
-                            {currentTaskDetail.status === 'processing' && '处理中'}
-                            {currentTaskDetail.status === 'success' && (isPartial ? '部分成功' : '成功')}
-                            {currentTaskDetail.status === 'failed' && '失败'}
-                          </Badge>
-                        )
-                      })()}
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm text-muted-foreground">提交时间</p>
-                      <p className="text-sm font-medium">{currentTaskDetail.createdAt}</p>
-                    </div>
-                  </div>
-
-                  <hr />
-
-                  {/* 统计信息 */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <Card className="border bg-muted/30">
-                      <CardContent className="flex flex-col items-center justify-center py-6">
-                        <p className="text-2xl font-bold">{currentTaskDetail.totalRows || '-'}</p>
-                        <p className="text-sm text-muted-foreground">总行数</p>
-                      </CardContent>
-                    </Card>
-                    <Card className="border bg-green-50">
-                      <CardContent className="flex flex-col items-center justify-center py-6">
-                        <p className="text-2xl font-bold text-green-600">{currentTaskDetail.successRows || '-'}</p>
-                        <p className="text-sm text-muted-foreground">成功</p>
-                      </CardContent>
-                    </Card>
-                    <Card className="border bg-red-50">
-                      <CardContent className="flex flex-col items-center justify-center py-6">
-                        <p className="text-2xl font-bold text-destructive">{currentTaskDetail.totalRows ? currentTaskDetail.failedRows : '-'}</p>
-                        <p className="text-sm text-muted-foreground">失败</p>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  <hr />
-
-                  {/* 详细信息 */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-1">
-                      <p className="text-sm text-muted-foreground">完成时间</p>
-                      <p className="text-sm font-medium">{currentTaskDetail.finishedAt ?? '处理中...'}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm text-muted-foreground">备注 / 错误信息</p>
-                      <p className="text-sm font-medium whitespace-pre-wrap">{currentTaskDetail.message || '-'}</p>
-                    </div>
-                  </div>
-
-                  {/* 操作 */}
-                  {currentTaskDetail.status === 'failed' && (
-                    <>
-                      <hr />
-                      <div>
-                        <Button onClick={() => handleRetryTask(currentTaskDetail)}>
-                          重试任务
-                        </Button>
-                      </div>
-                    </>
-                  )}
+                <CardContent className="p-0">
+                  <Table>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell className="w-[140px] font-medium text-muted-foreground bg-muted/30">任务ID</TableCell>
+                        <TableCell className="font-mono text-sm">{currentTaskDetail.taskId}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-medium text-muted-foreground bg-muted/30">文件名</TableCell>
+                        <TableCell className="text-sm break-all">{currentTaskDetail.fileName}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-medium text-muted-foreground bg-muted/30">状态</TableCell>
+                        <TableCell>
+                          {(() => {
+                            const isPartial = currentTaskDetail.status === 'success' && currentTaskDetail.failedRows > 0
+                            return (
+                              <Badge
+                                variant={
+                                  isPartial
+                                    ? 'secondary'
+                                    : currentTaskDetail.status === 'success'
+                                      ? 'default'
+                                      : currentTaskDetail.status === 'failed'
+                                        ? 'destructive'
+                                        : currentTaskDetail.status === 'processing'
+                                          ? 'secondary'
+                                          : 'outline'
+                                }
+                                className="flex w-fit items-center gap-1"
+                              >
+                                {currentTaskDetail.status === 'processing' && (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                )}
+                                {currentTaskDetail.status === 'pending' && '等待中'}
+                                {currentTaskDetail.status === 'processing' && '处理中'}
+                                {currentTaskDetail.status === 'success' && (isPartial ? '部分成功' : '成功')}
+                                {currentTaskDetail.status === 'failed' && '失败'}
+                              </Badge>
+                            )
+                          })()}
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-medium text-muted-foreground bg-muted/30">总行数</TableCell>
+                        <TableCell className="text-sm">{currentTaskDetail.totalRows || '-'}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-medium text-muted-foreground bg-muted/30">成功行数</TableCell>
+                        <TableCell className="text-sm">
+                          <span className="text-green-600 font-medium">{currentTaskDetail.successRows || '-'}</span>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-medium text-muted-foreground bg-muted/30">失败行数</TableCell>
+                        <TableCell className="text-sm">
+                          <span className={currentTaskDetail.failedRows > 0 ? 'text-destructive font-medium' : ''}>
+                            {currentTaskDetail.totalRows ? currentTaskDetail.failedRows : '-'}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-medium text-muted-foreground bg-muted/30">提交时间</TableCell>
+                        <TableCell className="text-sm">{currentTaskDetail.createdAt}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-medium text-muted-foreground bg-muted/30">完成时间</TableCell>
+                        <TableCell className="text-sm">{currentTaskDetail.finishedAt ?? '处理中...'}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-medium text-muted-foreground bg-muted/30">备注</TableCell>
+                        <TableCell className="text-sm whitespace-pre-wrap">{currentTaskDetail.message || '-'}</TableCell>
+                      </TableRow>
+                      {currentTaskDetail.status === 'failed' && (
+                        <TableRow>
+                          <TableCell className="font-medium text-muted-foreground bg-muted/30">操作</TableCell>
+                          <TableCell>
+                            <Button size="sm" onClick={() => handleRetryTask(currentTaskDetail)}>
+                              重试任务
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
                 </CardContent>
               </Card>
             </div>
           ) : (
             <div className="py-16 text-center text-muted-foreground">
               <ListChecks className="mx-auto mb-3 h-10 w-10 opacity-25" />
-              <p className="text-sm">请从"样本导入任务"页签点击详情查看</p>
+              <p className="text-sm">请从"样本导入任务"页签点击详情查看，或输入任务ID搜索</p>
             </div>
           )}
         </TabsContent>
